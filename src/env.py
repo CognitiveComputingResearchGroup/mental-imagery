@@ -176,7 +176,7 @@ while running:
         score = score + 10
 
         # choose random start loc for respawn
-        piece.left, piece.top = choice(start_states)
+        piece.rect.left, piece.rect.top = choice(start_states)
 
     draw_background()
     draw_object(piece)
