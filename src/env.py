@@ -163,7 +163,7 @@ def is_in_hole(piece):
     p1 = piece.center
 
     distance = math.sqrt((p0[0] - p1[0]) ** 2 + (p0[1] - p1[1]) ** 2)
-    if distance < 10.0:
+    if distance < 7.0:
         return True
 
 
