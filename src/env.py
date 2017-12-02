@@ -1,3 +1,6 @@
+from StringIO import StringIO
+
+import lidapy
 import pygame, math
 
 from random import choice
@@ -6,9 +9,41 @@ from pygame import font
 from pygame import display
 from pygame.time import Clock
 from datetime import timedelta
+from PIL import Image
 
+from sensor_msgs.msg import CompressedImage
 
+# Initializing Python Libraries
 pygame.init()
+lidapy.init(process_name='Environment')
+
+# Color constants
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+DARK_BLUE = (0, 0, 128)
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+PINK = (255, 200, 200)
+GRAY = (50, 50, 50)
+
+# Screen dimensions
+WIDTH = 470
+HEIGHT = 300
+
+# Frames Per Second
+FPS = 200
+
+# Game Constants
+SCORE_INCREMENT = 10
+PIECE_MIN_DELTA = 5
+SCORE_DISTANCE_IN_PIXELS = 5.0
+START_STATES = [(15, 60), (15, 210), (330, 210), (385, 20)]
+
+# ROS message topics
+image_topic = lidapy.Topic('images', msg_type=CompressedImage, queue_size=1)
+score_topic = lidapy.Topic('score', queue_size=1)
+action_topic = lidapy.Topic('actions', queue_size=1)
 
 
 class GameObject:
@@ -65,35 +100,19 @@ class GameObject:
         return self.rect.center
 
 
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-DARK_BLUE = (0, 0, 128)
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-PINK = (255, 200, 200)
-GRAY = (50, 50, 50)
-
-WIDTH = 470
-HEIGHT = 300
-
-FPS = 30
-
-PIECE_MIN_DELTA = 5
-
+# Current Game State
 score = 0
 elapsed_time = 0
+next_action = ''
 
+# Initialize Game Objects
 clock = Clock()
 screen = display.set_mode((WIDTH, HEIGHT))
 
 background = image.load('../resources/wood_background.jpg').convert()
 hole = GameObject(image.load('../resources/hole.png').convert_alpha(), [0, 0])
 hole.move([(WIDTH - hole.width) / 2, (HEIGHT - hole.height) / 2])
-
-start_states = [(15, 60), (15, 210), (330, 210), (385, 20)]
-
-piece = GameObject(image.load('../resources/wooden_circle.png').convert_alpha(), list(choice(start_states)))
+piece = GameObject(image.load('../resources/wooden_circle.png').convert_alpha(), list(choice(START_STATES)))
 
 
 def display_score():
@@ -135,24 +154,30 @@ def draw_object(object):
     screen.blit(object.image, object.rect)
 
 
-def process_game_event():
-    global running
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+def screenshot(screen):
+    screenshot = Image.frombytes('RGB', screen.get_size(), pygame.image.tostring(screen, 'RGB'))
+
+    img_buffer = StringIO()
+    screenshot.save(img_buffer, 'JPEG')
+
+    msg = CompressedImage()
+    msg.format = 'jpeg'
+    msg.data = img_buffer.getvalue()
+
+    return msg
 
 
-def process_key_event():
+def process_agent_action(action):
     offset = [0, 0]
 
     keys = pygame.key.get_pressed()
-    if keys[pygame.K_UP]:
+    if keys[pygame.K_UP] or action == 'UP':
         offset = [0, -PIECE_MIN_DELTA]
-    if keys[pygame.K_DOWN]:
+    if keys[pygame.K_DOWN] or action == 'DOWN':
         offset = [0, PIECE_MIN_DELTA]
-    if keys[pygame.K_LEFT]:
+    if keys[pygame.K_LEFT] or action == 'LEFT':
         offset = [-PIECE_MIN_DELTA, 0]
-    if keys[pygame.K_RIGHT]:
+    if keys[pygame.K_RIGHT] or action == 'RIGHT':
         offset = [PIECE_MIN_DELTA, 0]
 
     piece.move(offset)
@@ -163,26 +188,33 @@ def is_in_hole(piece):
     p1 = piece.center
 
     distance = math.sqrt((p0[0] - p1[0]) ** 2 + (p0[1] - p1[1]) ** 2)
-    if distance < 7.0:
+    if distance <= SCORE_DISTANCE_IN_PIXELS:
         return True
 
 
 running = True
 while running:
-    process_game_event()
-    process_key_event()
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    process_agent_action(next_action)
 
     if is_in_hole(piece):
-        score = score + 10
+        score = score + SCORE_INCREMENT
 
         # choose random start loc for respawn
-        piece.rect.left, piece.rect.top = choice(start_states)
+        piece.rect.left, piece.rect.top = choice(START_STATES)
 
     draw_background()
     draw_object(piece)
     draw_always_visible()
 
     display.update()
-    clock.tick(FPS)
 
+    clock.tick(FPS)
     elapsed_time = elapsed_time + clock.get_time()
+
+    image_topic.send(screenshot(screen))
+    score_topic.send(score)
+    next_action = action_topic.receive(timeout=.001)
