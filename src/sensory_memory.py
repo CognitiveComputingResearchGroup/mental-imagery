@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
-from PIL import Image
-from StringIO import StringIO
+import numpy as np
+import cv2
 
 import lidapy
 from lidapy import LIDAThread
@@ -14,14 +14,15 @@ score_topic = lidapy.Topic('score', queue_size=1)
 def receive_image():
     msg = image_topic.receive()  # type: CompressedImage
     if msg:
-        # TODO: Create the pixel layer from this image's data
-        image = Image.open(StringIO(msg.data))
+        pixel_matrix = np.fromstring(msg.data, np.uint8)
+        open_cv_image = cv2.imdecode(pixel_matrix, flags=cv2.IMREAD_COLOR)
 
 
 def receive_score():
     msg = score_topic.receive()
     if msg:
-        print msg
+        pass
+        # print msg
 
 
 # Initialize the lidapy framework

@@ -32,7 +32,7 @@ WIDTH = 470
 HEIGHT = 300
 
 # Frames Per Second
-FPS = 200
+FPS = 30
 
 # Game Constants
 SCORE_INCREMENT = 10
