@@ -2,9 +2,11 @@ import numpy as np
 import cv2
 
 
-def display(img):
+def display(img, wait_for_keypress=True):
     cv2.imshow("Image", img)
-    cv2.waitKey(0)
+
+    if wait_for_keypress:
+        cv2.waitKey(0)
 
 
 def select_pixels(img, area):
@@ -24,7 +26,7 @@ def get_image_segments(img):
 
 
 def get_pixels_for_segment(img, segment):
-    cimg = np.zeros_like(img)
+    cimg = np.ones_like(img)
     cv2.drawContours(cimg, [segment], -1, color=(255, 255, 255), thickness=-1)
     return select_pixels(img, cimg)
 
@@ -34,12 +36,4 @@ def crop_to_segment(img, segment):
     return img[y: y + h, x: x + w]
 
 
-img = cv2.imread('../resources/pixel_layer.png')
 
-segments = get_image_segments(img)
-
-for segment in segments:
-    masked_img = get_pixels_for_segment(img, segment)
-    display(masked_img)
-    cropped_image = crop_to_segment(masked_img, segment)
-    display(cropped_image)
